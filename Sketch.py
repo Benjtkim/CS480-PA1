@@ -266,85 +266,109 @@ class Sketch(CanvasBase):
         #   1. Only integer is allowed in interpolate point coordinates between p1 and p2
         #   2. Float number is allowed in interpolate point color
 
-        # The list should start with the very first point.
+        # The list should start with p1, which is why the first for loop starts at p1.x/y 
+        # + 1.
         pts_drawn = [p1]
 
-        # Find delta_x, delta_y, and min_x for use in calculating D_zero.
+        # Calculate delta_x and y.
         delta_x = p2.x - p1.x
         delta_y = p2.y - p1.y
-        min_x = min(p1.x, p2.x)
 
-        # Check to see whether the slope is shallow.
-        shallowSlope = delta_x >= delta_y
-        
-        # If the slope is steep, flip delta_x and delta_y and apply 
-        # Bresenham's, but make sure to plot the points with their x and 
-        # y coordinates flipped.
-        if (not shallowSlope):
-            hold = delta_x
-            delta_x = delta_y
-            delta_y = hold
-        
-        # This is how to calculate D_zero without floating point math. D_curr
-        # would obviously start at D_zero.
-        D_curr = 2 * delta_y - delta_x
+        # Make copies of delta_x and y in case the slope is steep and doSmooth is on. 
+        # We need to do this because we flip delta_x and y if the slope is steep.
+        orig_dx = delta_x
+        orig_dy = delta_y
 
-        # Y_0 would be p1.y.
-        Y_curr = p1.y
-        
-        for x in range(min_x + 1, max(p1.x, p2.x) + 1):
+        # Make sure the slope is positive for the following logic.
+        if delta_y >= 0 and delta_x >= 0:
 
-            # If D_zero/D_curr is > 0, apply Bresenham's by choosing the upper pixel
-            # and adding 2 * delta_y - 2 * delta_x to D_curr. If not, choose the lower 
-            # pixel (i.e. don't add to Y_curr) and only add 2 * delta_y.
-            if D_curr > 0:
-                Y_curr += 1
-                D_curr = D_curr + 2 *delta_y - 2 * delta_x
-            else :
-                D_curr = D_curr + 2 * delta_y
+            # Boolean for whether the slope is shallow or steep.
+            shallowSlope = delta_x >= delta_y
 
-            # If doSmooth is on, apply color interpolation by finding t and applying 
-            # it to the calculation of rgb values.
-            if (doSmooth):
-                # (1 - t)(p1.x) + tp2.x = x
-                # p1.x - tp1.x + tp2.x = x
-                # tp2.x - tp1.x = x - p1.x
-                # t = (x - p1.x) / (p2.x - p1.x)
-                # t = (x - p1.x) / delta_x
-                # If using y, follow the same steps as above but replace x with y. The choice of using 
-                # one over the other will depend on which delta is greater.
-                if (delta_x >= delta_y):
-                    t = (x - p1.x) / delta_x
-                else:
-                    t = (Y_curr - p1.y) / delta_y
+            # For this implementation of Bresenham's, for steep slopes, the goal is to 
+            # calculate the points that would make up the line for the reciprocal slope, 
+            # but plot the points with their coordinates flipped.
 
-                red = (1 - t) * p1.color.r + t * p2.color.r
-                green = (1 - t) * p1.color.g + t * p2.color.g
-                blue = (1 - t) * p1.color.b + t * p2.color.b
+            # With the above in mind, if the slope is shallow, we iterate normally, i.e.
+            # horizontally from (p1.x + 1, p1.y/p1.y+1) to (p2.x, p2.y), or in other words,
+            # from p1.x + 1 to p2.x. With that written out, it's easy to see Y_0 would 
+            # start at p1.y.
+            if (shallowSlope):
+                min_x = min(p1.x, p2.x)
+                max_x = max(p1.x, p2.x)
+                Y_curr = p1.y
 
-                if (shallowSlope):
-
-                    # Append the point to pts_drawn and draw the point onto the buff with 
-                    # setPoint.
-                    pts_drawn.append(Point(x, Y_curr, (red, green, blue)))
-                    buff.setPoint(Point(x, Y_curr, (red, green, blue)))
-                else:
-                    pts_drawn.append(Point(Y_curr, x, (red, green, blue)))
-                    buff.setPoint(Point(Y_curr, x, (red, green, blue)))
-
-            # If doSmooth is off, just use p1's color.
+            # If the slope is steep, we iterate horizonally from (p1.y + 1, p1.x/p1.x+1) to 
+            # (p2.y, p2.x), or from p1.y+1 to p2.y. So, delta_x and y would be flipped,
+            # and we'd going from p1.y+1 to p2.y. With that written out, it's easy to see
+            # Y_0 would start at p1.x.
             else:
-                
-                if (shallowSlope):
-                    pts_drawn.append(Point(x, Y_curr, p1.color))
-                    buff.setPoint(Point(x, Y_curr, p1.color))
-                else:
-                    pts_drawn.append(Point(Y_curr, x, p1.color))
-                    buff.setPoint(Point(Y_curr, x, p1.color))
+                hold = delta_x
+                delta_x = delta_y
+                delta_y = hold
+                min_x = min(p1.y, p2.y)
+                max_x = max(p1.y, p2.y)
+                Y_curr = p1.x
 
-        # The last step is to append p2 to pts_drawn and draw it onto the buff.
-        pts_drawn.append(p2)
-        buff.setPoint(p2) 
+            # This is how you calculate D_0, and D_curr would obviously start at D_0.
+            D_curr = 2 * delta_y - delta_x
+
+            # By using the min_x and max_x variables that were created before, there is
+            # no need for separate for loops for lines that are shallow or steep.
+            for x in range(min_x + 1, max_x + 1):
+
+                # If the decision parameter is positive, apply Bresenham's by choosing
+                # the above pixel and by adding 2 * delta_y - 2 * delta_x.
+                if D_curr > 0:
+                    Y_curr += 1
+                    D_curr = D_curr + 2 *delta_y - 2 * delta_x
+
+                # If the decision parameter is negative, apply Bresenham's by simply
+                # adding 2 * delta_y.
+                else :
+                    D_curr = D_curr + 2 * delta_y
+
+                # If doSmooth is on, we need to do color interpolation.
+                if (doSmooth):
+                    # Calculating t:
+                    # (1 - t)(p1.x) + tp2.x = x
+                    # p1.x - tp1.x + tp2.x = x
+                    # tp2.x - tp1.x = x - p1.x
+                    # t = (x - p1.x) / (p2.x - p1.x)
+                    # t = (x - p1.x) / delta_x
+                    # If using y, follow the same steps as above but replace x with y. The 
+                    # choice of using one over the other will depend on which delta is greater, 
+                    # or in other words, whether the line is shallow or steep.
+                    if shallowSlope:
+                        t = (x - p1.x) / orig_dx
+                    else:
+                        # Remember that for a steep slope, the current x represents the y coordinate 
+                        # of the point that will be plotted, hence x - p1.y.
+                        t = (x - p1.y) / orig_dy
+
+                    # Interpolation for the rgb values follows the same process as for coordinates.
+                    red = (1 - t) * p1.color.r + t * p2.color.r
+                    green = (1 - t) * p1.color.g + t * p2.color.g
+                    blue = (1 - t) * p1.color.b + t * p2.color.b
+
+                    # For a steep slope, the coordinates should be flipped.
+                    if (shallowSlope):
+                        p = Point(x, Y_curr, (red, green, blue))
+                    else:
+                        p = Point(Y_curr, x, (red, green, blue))
+                    
+                    pts_drawn.append(p)
+                    buff.setPoint(p)
+
+                # If doSmooth is off, the color of the point should be p1's color.
+                else:
+                    if (shallowSlope):
+                        p = Point(x, Y_curr, p1.color)
+                    else:
+                        p = Point(Y_curr, x, p1.color)
+
+                pts_drawn.append(p)
+                buff.setPoint(p)
         
         return pts_drawn
 
