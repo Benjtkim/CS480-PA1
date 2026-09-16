@@ -327,6 +327,7 @@ class Sketch(CanvasBase):
                 # rgb values of p1.x.
                 pts_drawn.append(Point(x, Y_curr, (t * p1.color.r, t * p1.color.g, t * p1.color.b)))
                 buff.setPoint(Point(x, Y_curr, (t * p1.color.r, t * p1.color.g, t * p1.color.b)))
+                
 
         return pts_drawn
 
