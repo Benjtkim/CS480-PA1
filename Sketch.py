@@ -137,10 +137,10 @@ class Sketch(CanvasBase):
             if self.debug > 0:
                 print("draw a line from ", self.points_l[-1], " -> ", self.points_l[-2])
             # TODO 1: uncomment this and comment out setPoint when you have finished the drawLine function
-            # self.drawLine(self.buff, self.points_l[-2], self.points_l[-1], self.doSmooth, self.doAA, self.doAAlevel)
-            self.drawRectangle(self.buff, self.points_l[-2], self.points_l[-1])
-            self.buff.setPoint(self.points_l[-1])
-            self.points_l.clear()
+            self.drawLine(self.buff, self.points_l[-2], self.points_l[-1], self.doSmooth, self.doAA, self.doAAlevel)
+            # self.drawRectangle(self.buff, self.points_l[-2], self.points_l[-1])
+            # self.buff.setPoint(self.points_l[-1])
+            # self.points_l.clear()
 
     def drawRectangle(self, buff: Buff, p1: Point, p2: Point) -> None:
 
@@ -243,7 +243,7 @@ class Sketch(CanvasBase):
         return texture.getPointFromPointArray(x, y)
 
     def drawLine(self, buff: Buff, p1: Point, p2: Point,
-                 doSmooth: bool = True, doAA: bool = False, doAAlevel: int = 4) -> list[Point]:
+                    doSmooth: bool = True, doAA: bool = False, doAAlevel: int = 4) -> list[Point]:
         """
         Draw a line between p1 and p2 on buff
 
@@ -266,7 +266,67 @@ class Sketch(CanvasBase):
         #   1. Only integer is allowed in interpolate point coordinates between p1 and p2
         #   2. Float number is allowed in interpolate point color
 
+        # The list should start with the very first point.
         pts_drawn = []
+
+        # Find delta_x, delta_y, and min_x for use in calculating D_zero.
+        delta_x = p2.x - p1.x
+        delta_y = p2.y - p1.y
+        min_x = min(p1.x, p2.x)
+
+        # This first process is only for when the slope is between 0 and 1 (ie 
+        # between 0 and 45 degrees) and doSmooth is off.
+        if (delta_y >= 0 and delta_x >= delta_y) and (doSmooth == False):
+
+            
+            # This is how to calculate D_zero without floating point math. D_curr
+            # would obviously start at D_zero.
+            D_curr = 2 * delta_y - delta_x
+
+            # Y_0 would be p1.y.
+            Y_curr = p1.y
+            
+            for x in range(min_x + 1, max(p1.x, p2.x) + 1):
+
+                # If D_zero/D_curr is > 0, apply Bresenham's by choosing the upper pixel
+                # and adding 2 * delta_y - 2 * delta_x to D_curr. If not, choose the lower 
+                # pixel (i.e. don't add to Y_curr) and only add 2 * delta_y.
+                if D_curr > 0:
+                    Y_curr += 1
+                    D_curr = D_curr + 2 *delta_y - 2 * delta_x
+                else :
+                    D_curr = D_curr + 2 * delta_y
+
+                # Append the point to pts_drawn and draw the point onto the buff with 
+                # setPoint.
+                pts_drawn.append(Point(x, Y_curr, p1.color))
+                buff.setPoint(Point(x, Y_curr, p1.color))
+
+        elif (delta_y >= 0 and delta_x >= delta_y) and (doSmooth == True):
+
+            D_curr = 2 * delta_y - delta_x
+
+            Y_curr = p1.y
+            
+            for x in range(min_x + 1, max(p1.x, p2.x) + 1):
+
+                if D_curr > 0:
+                    Y_curr += 1
+                    D_curr = D_curr + 2 *delta_y - 2 * delta_x
+                else :
+                    D_curr = D_curr + 2 * delta_y
+
+                # (1 - t)(p1.x) + tp2.x = x
+                # p1.x - tp1.x + tp2.x = x
+                # tp2.x - tp1.x = x - p1.x
+                # t = (x - p1.x) / (p2.x - p1.x)
+                # t = (x - p1.x) / delta_x
+                t = (x - p1.x) / delta_x
+
+                # The only change to this portion of the code is multiplying t to the 
+                # rgb values of p1.x.
+                pts_drawn.append(Point(x, Y_curr, (t * p1.color.r, t * p1.color.g, t * p1.color.b)))
+                buff.setPoint(Point(x, Y_curr, (t * p1.color.r, t * p1.color.g, t * p1.color.b)))
 
         return pts_drawn
 
