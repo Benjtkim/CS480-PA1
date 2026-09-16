@@ -267,68 +267,85 @@ class Sketch(CanvasBase):
         #   2. Float number is allowed in interpolate point color
 
         # The list should start with the very first point.
-        pts_drawn = []
+        pts_drawn = [p1]
 
         # Find delta_x, delta_y, and min_x for use in calculating D_zero.
         delta_x = p2.x - p1.x
         delta_y = p2.y - p1.y
         min_x = min(p1.x, p2.x)
 
-        # This first process is only for when the slope is between 0 and 1 (ie 
-        # between 0 and 45 degrees) and doSmooth is off.
-        if (delta_y >= 0 and delta_x >= delta_y) and (doSmooth == False):
+        # Check to see whether the slope is shallow.
+        shallowSlope = delta_x >= delta_y
+        
+        # If the slope is steep, flip delta_x and delta_y and apply 
+        # Bresenham's, but make sure to plot the points with their x and 
+        # y coordinates flipped.
+        if (not shallowSlope):
+            hold = delta_x
+            delta_x = delta_y
+            delta_y = hold
+        
+        # This is how to calculate D_zero without floating point math. D_curr
+        # would obviously start at D_zero.
+        D_curr = 2 * delta_y - delta_x
 
-            
-            # This is how to calculate D_zero without floating point math. D_curr
-            # would obviously start at D_zero.
-            D_curr = 2 * delta_y - delta_x
+        # Y_0 would be p1.y.
+        Y_curr = p1.y
+        
+        for x in range(min_x + 1, max(p1.x, p2.x) + 1):
 
-            # Y_0 would be p1.y.
-            Y_curr = p1.y
-            
-            for x in range(min_x + 1, max(p1.x, p2.x) + 1):
+            # If D_zero/D_curr is > 0, apply Bresenham's by choosing the upper pixel
+            # and adding 2 * delta_y - 2 * delta_x to D_curr. If not, choose the lower 
+            # pixel (i.e. don't add to Y_curr) and only add 2 * delta_y.
+            if D_curr > 0:
+                Y_curr += 1
+                D_curr = D_curr + 2 *delta_y - 2 * delta_x
+            else :
+                D_curr = D_curr + 2 * delta_y
 
-                # If D_zero/D_curr is > 0, apply Bresenham's by choosing the upper pixel
-                # and adding 2 * delta_y - 2 * delta_x to D_curr. If not, choose the lower 
-                # pixel (i.e. don't add to Y_curr) and only add 2 * delta_y.
-                if D_curr > 0:
-                    Y_curr += 1
-                    D_curr = D_curr + 2 *delta_y - 2 * delta_x
-                else :
-                    D_curr = D_curr + 2 * delta_y
-
-                # Append the point to pts_drawn and draw the point onto the buff with 
-                # setPoint.
-                pts_drawn.append(Point(x, Y_curr, p1.color))
-                buff.setPoint(Point(x, Y_curr, p1.color))
-
-        elif (delta_y >= 0 and delta_x >= delta_y) and (doSmooth == True):
-
-            D_curr = 2 * delta_y - delta_x
-
-            Y_curr = p1.y
-            
-            for x in range(min_x + 1, max(p1.x, p2.x) + 1):
-
-                if D_curr > 0:
-                    Y_curr += 1
-                    D_curr = D_curr + 2 *delta_y - 2 * delta_x
-                else :
-                    D_curr = D_curr + 2 * delta_y
-
+            # If doSmooth is on, apply color interpolation by finding t and applying 
+            # it to the calculation of rgb values.
+            if (doSmooth):
                 # (1 - t)(p1.x) + tp2.x = x
                 # p1.x - tp1.x + tp2.x = x
                 # tp2.x - tp1.x = x - p1.x
                 # t = (x - p1.x) / (p2.x - p1.x)
                 # t = (x - p1.x) / delta_x
-                t = (x - p1.x) / delta_x
+                # If using y, follow the same steps as above but replace x with y. The choice of using 
+                # one over the other will depend on which delta is greater.
+                if (delta_x >= delta_y):
+                    t = (x - p1.x) / delta_x
+                else:
+                    t = (Y_curr - p1.y) / delta_y
 
-                # The only change to this portion of the code is multiplying t to the 
-                # rgb values of p1.x.
-                pts_drawn.append(Point(x, Y_curr, (t * p1.color.r, t * p1.color.g, t * p1.color.b)))
-                buff.setPoint(Point(x, Y_curr, (t * p1.color.r, t * p1.color.g, t * p1.color.b)))
+                red = (1 - t) * p1.color.r + t * p2.color.r
+                green = (1 - t) * p1.color.g + t * p2.color.g
+                blue = (1 - t) * p1.color.b + t * p2.color.b
+
+                if (shallowSlope):
+
+                    # Append the point to pts_drawn and draw the point onto the buff with 
+                    # setPoint.
+                    pts_drawn.append(Point(x, Y_curr, (red, green, blue)))
+                    buff.setPoint(Point(x, Y_curr, (red, green, blue)))
+                else:
+                    pts_drawn.append(Point(Y_curr, x, (red, green, blue)))
+                    buff.setPoint(Point(Y_curr, x, (red, green, blue)))
+
+            # If doSmooth is off, just use p1's color.
+            else:
                 
+                if (shallowSlope):
+                    pts_drawn.append(Point(x, Y_curr, p1.color))
+                    buff.setPoint(Point(x, Y_curr, p1.color))
+                else:
+                    pts_drawn.append(Point(Y_curr, x, p1.color))
+                    buff.setPoint(Point(Y_curr, x, p1.color))
 
+        # The last step is to append p2 to pts_drawn and draw it onto the buff.
+        pts_drawn.append(p2)
+        buff.setPoint(p2) 
+        
         return pts_drawn
 
     def drawTriangle(self, buff: Buff, p1: Point, p2: Point, p3: Point,
