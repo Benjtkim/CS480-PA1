@@ -164,15 +164,15 @@ class Sketch(CanvasBase):
             if self.debug > 0:
                 print("draw a line from ", self.points_r[-1], " -> ", self.points_r[-2])
             # TODO 1: uncomment this and comment out setPoint when you have finished the drawLine function
-            # self.drawLine(self.buff, self.points_r[-2], self.points_r[-1], self.doSmooth, self.doAA, self.doAAlevel)
-            self.buff.setPoint(self.points_r[-1])
+            self.drawLine(self.buff, self.points_r[-2], self.points_r[-1], self.doSmooth, self.doAA, self.doAAlevel)
+            # self.buff.setPoint(self.points_r[-1])
         elif len(self.points_r) % 3 == 0 and len(self.points_r) > 0:
             if self.debug > 0:
                 print("draw a triangle {} -> {} -> {}".format(self.points_r[-3], self.points_r[-2], self.points_r[-1]))
             # TODO 2: uncomment drawTriangle and comment out setPoint when you have finished the drawTriangle function
-            # self.drawTriangle(self.buff, self.points_r[-3], self.points_r[-2], self.points_r[-1], self.doSmooth, self.doAA, self.doAAlevel, self.doTexture)
-            self.buff.setPoint(self.points_r[-1])
-            self.points_r.clear()
+            self.drawTriangle(self.buff, self.points_r[-3], self.points_r[-2], self.points_r[-1], self.doSmooth, self.doAA, self.doAAlevel, self.doTexture)
+            # self.buff.setPoint(self.points_r[-1])
+            # self.points_r.clear()
 
     def Interrupt_Keyboard(self, keycode: int) -> None:
         """
@@ -508,6 +508,27 @@ class Sketch(CanvasBase):
         #   2. Use of barycentric coordinates is not allowed in this function.
         #   3. You should be able to support both flat shading and smooth shading, which is controlled by doSmooth
         #   4. Texture-mapped fill of triangles should be controlled by doTexture.
+
+        # Draw the 3 edges and save the lists each call to drawLine generates. Note that the points in each list
+        # are sorted in increasing y-coord order.
+        list1 = self.drawLine(buff, p1, p2, doSmooth, doAA, doAAlevel)
+        list2 = self.drawLine(buff, p2, p3, doSmooth, doAA, doAAlevel)
+        list3 = self.drawLine(buff, p1, p3, doSmooth, doAA, doAAlevel)
+
+        # Add the 3 verticies into a list and sort them by their y-coords to find the upper, middle, and lower y-coords.
+        pointsList = [p1, p2, p3]
+        pointsList = sorted(pointsList, key=lambda point: point.y)
+        upperY = pointsList[2].y
+        middleY = pointsList[1].y
+        lowerY = pointsList[0].y
+
+        # Find the delta_y for the upper triangle, and the delta_y for the lower triangle.
+        delta_y1 = upperY - middleY
+        delta_y2 = middleY - lowerY
+
+        # for y in range(upperY, middleY, -1):
+        #     print("hello")
+        
         return
 
     # test for lines lines in all directions
