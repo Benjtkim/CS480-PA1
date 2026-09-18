@@ -270,6 +270,10 @@ class Sketch(CanvasBase):
         # + 1.
         pts_drawn = [p1]
 
+        # Required for reflections over y axis.
+        stepCount = 0
+        yStep = 1
+
         # Calculate delta_x and y.
         delta_x = p2.x - p1.x
         delta_y = p2.y - p1.y
@@ -279,93 +283,135 @@ class Sketch(CanvasBase):
         orig_dx = delta_x
         orig_dy = delta_y
 
-        # Make sure the slope is positive for the following logic.
-        if delta_y >= 0 and delta_x >= 0:
+        # Boolean for whether the slope is shallow or steep. Use abs on delta_x and y
+        # because both can be negative.
+        shallowSlope = abs(delta_x) >= abs(delta_y)
 
-            # Boolean for whether the slope is shallow or steep.
-            shallowSlope = delta_x >= delta_y
+        # Booleans for whether delta_x or y are negative. (Used to determine if the
+        # slope as a whole is negative.)
+        posDelta_x = delta_x >= 0
+        posDelta_y = delta_y >= 0
 
-            # For this implementation of Bresenham's, for steep slopes, the goal is to 
-            # calculate the points that would make up the line for the reciprocal slope, 
-            # but plot the points with their coordinates flipped.
+        # For this implementation of Bresenham's, for steep slopes, the goal is to 
+        # calculate the points that would make up the line for the reciprocal slope, 
+        # but plot the points with their coordinates flipped.
 
-            # With the above in mind, if the slope is shallow, we iterate normally, i.e.
-            # horizontally from (p1.x + 1, p1.y/p1.y+1) to (p2.x, p2.y), or in other words,
-            # from p1.x + 1 to p2.x. With that written out, it's easy to see Y_0 would 
-            # start at p1.y.
-            if (shallowSlope):
-                min_x = min(p1.x, p2.x)
-                max_x = max(p1.x, p2.x)
-                Y_curr = p1.y
+        # With the above in mind, if the slope is shallow and positive, we iterate 
+        # normally, i.e.horizontally from (p1.x + 1, p1.y/p1.y+1) to (p2.x, p2.y), 
+        # or in other words, from p1.x + 1 to p2.x. With that written out, it's easy 
+        # to see Y_0 would start at p1.y.
+        if (shallowSlope and posDelta_x and posDelta_y):
+            min_x = min(p1.x, p2.x)
+            max_x = max(p1.x, p2.x)
+            Y_curr = p1.y
 
-            # If the slope is steep, we iterate horizonally from (p1.y + 1, p1.x/p1.x+1) to 
-            # (p2.y, p2.x), or from p1.y+1 to p2.y. So, delta_x and y would be flipped,
-            # and we'd going from p1.y+1 to p2.y. With that written out, it's easy to see
-            # Y_0 would start at p1.x.
-            else:
-                hold = delta_x
-                delta_x = delta_y
-                delta_y = hold
-                min_x = min(p1.y, p2.y)
-                max_x = max(p1.y, p2.y)
-                Y_curr = p1.x
+        # If the slope is steep and positive, we iterate horizonally from 
+        # (p1.y + 1, p1.x/p1.x + 1) to (p2.y, p2.x), or from p1.y + 1 to p2.y. So, delta_x 
+        # and y would be flipped, and we'd going from p1.y+1 to p2.y. With that written 
+        # out, it's easy to see Y_0 would start at p1.x.
+        elif (not shallowSlope and posDelta_x and posDelta_y):
+            hold = delta_x
+            delta_x = delta_y
+            delta_y = hold
+            min_x = min(p1.y, p2.y)
+            max_x = max(p1.y, p2.y)
+            Y_curr = p1.x
 
-            # This is how you calculate D_0, and D_curr would obviously start at D_0.
-            D_curr = 2 * delta_y - delta_x
+        # If the slope is shallow and negative, iterate from (p1.x + 1, p1.y/p1.y+1) to 
+        # (p1.x + delta_x, p2.x), and Y_curr starts at p1.y.
+        elif (shallowSlope and not posDelta_x and posDelta_y):
+            delta_x = abs(delta_x)
+            min_x = min(p1.x, p1.x + delta_x)
+            max_x = max(p1.x, p1.x + delta_x)
+            Y_curr = p1.y
 
-            # By using the min_x and max_x variables that were created before, there is
-            # no need for separate for loops for lines that are shallow or steep.
-            for x in range(min_x + 1, max_x + 1):
+        # If the slope is steep and negative, iterate from (p1.y + 1, p1.x/p1.x + 1) to 
+        # (p2.y, p1.x + delta_x).
+        elif (not shallowSlope and not posDelta_x and posDelta_y):
+            hold = abs(delta_x)
+            delta_x = delta_y
+            delta_y = hold
+            min_x = min(p1.y, p2.y)
+            max_x = max(p1.y, p2.y)
+            Y_curr = p1.x
+            yStep = -1
 
-                # If the decision parameter is positive, apply Bresenham's by choosing
-                # the above pixel and by adding 2 * delta_y - 2 * delta_x.
-                if D_curr > 0:
-                    Y_curr += 1
-                    D_curr = D_curr + 2 *delta_y - 2 * delta_x
+        # This is how you calculate D_0, and D_curr would obviously start at D_0.
+        D_curr = 2 * delta_y - delta_x
 
-                # If the decision parameter is negative, apply Bresenham's by simply
-                # adding 2 * delta_y.
-                else :
-                    D_curr = D_curr + 2 * delta_y
+        # By using the min_x and max_x variables that were created before, there is
+        # no need for separate for loops for lines that are shallow or steep.
+        for x in range(min_x + 1, max_x + 1):
 
-                # If doSmooth is on, we need to do color interpolation.
-                if (doSmooth):
-                    # Calculating t:
-                    # (1 - t)(p1.x) + tp2.x = x
-                    # p1.x - tp1.x + tp2.x = x
-                    # tp2.x - tp1.x = x - p1.x
-                    # t = (x - p1.x) / (p2.x - p1.x)
-                    # t = (x - p1.x) / delta_x
-                    # If using y, follow the same steps as above but replace x with y. The 
-                    # choice of using one over the other will depend on which delta is greater, 
-                    # or in other words, whether the line is shallow or steep.
-                    if shallowSlope:
-                        t = (x - p1.x) / orig_dx
-                    else:
-                        # Remember that for a steep slope, the current x represents the y coordinate 
-                        # of the point that will be plotted, hence x - p1.y.
-                        t = (x - p1.y) / orig_dy
+            stepCount += 1
 
-                    # Interpolation for the rgb values follows the same process as for coordinates.
-                    red = (1 - t) * p1.color.r + t * p2.color.r
-                    green = (1 - t) * p1.color.g + t * p2.color.g
-                    blue = (1 - t) * p1.color.b + t * p2.color.b
+            # If the decision parameter is positive, apply Bresenham's by choosing
+            # the above pixel and by adding 2 * delta_y - 2 * delta_x.
+            if D_curr > 0:
+                Y_curr += yStep
+                D_curr = D_curr + 2 *delta_y - 2 * delta_x
 
-                    # For a steep slope, the coordinates should be flipped.
-                    if (shallowSlope):
-                        p = Point(x, Y_curr, (red, green, blue))
-                    else:
-                        p = Point(Y_curr, x, (red, green, blue))
-                    
-                    pts_drawn.append(p)
-                    buff.setPoint(p)
+            # If the decision parameter is negative, apply Bresenham's by simply
+            # adding 2 * delta_y.
+            else :
+                D_curr = D_curr + 2 * delta_y
 
-                # If doSmooth is off, the color of the point should be p1's color.
+            # If doSmooth is on, we need to do color interpolation.
+            if (doSmooth):
+                # Calculating t:
+                # (1 - t)(p1.x) + tp2.x = x
+                # p1.x - tp1.x + tp2.x = x
+                # tp2.x - tp1.x = x - p1.x
+                # t = (x - p1.x) / (p2.x - p1.x)
+                # t = (x - p1.x) / delta_x
+                # If using y, follow the same steps as above but replace x with y. The 
+                # choice of using one over the other will depend on which delta is 
+                # greater, or in other words, whether the line is shallow or steep.
+                if shallowSlope:
+                    t = (x - p1.x) / orig_dx
                 else:
-                    if (shallowSlope):
-                        p = Point(x, Y_curr, p1.color)
-                    else:
-                        p = Point(Y_curr, x, p1.color)
+                    # Remember that for a steep slope, the current x represents the y coordinate 
+                    # of the point that will be plotted, hence x - p1.y.
+                    t = (x - p1.y) / orig_dy
+
+                # Interpolation for the rgb values follows the same process as for coordinates.
+                red = (1 - t) * p1.color.r + t * p2.color.r
+                green = (1 - t) * p1.color.g + t * p2.color.g
+                blue = (1 - t) * p1.color.b + t * p2.color.b
+
+                # Need to use the interpolated values to create a ColorType object.
+                color = ColorType(red, green, blue)
+
+                # Coordinates would be normal for a shallow and positive slope.
+                if (shallowSlope and posDelta_x and posDelta_y):
+                    p = Point(x, Y_curr, color)
+
+                # For a steep slope, the coordinates should be flipped.    
+                elif (not shallowSlope and posDelta_x and posDelta_y):
+                    p = Point(Y_curr, x, color)
+
+                # For a shallow and negative slope, simulate iterating backwards using a variable. 
+                # For each step forward, we should have gone one step back, which is the same as 
+                # subtracting by 2 times the stepCount.
+                elif (shallowSlope and not posDelta_x and posDelta_y):
+                    p = Point(x - 2 * stepCount, Y_curr, color)
+
+                elif (not shallowSlope and not posDelta_x and posDelta_y):
+                    p = Point(Y_curr, x, color)
+                
+                pts_drawn.append(p)
+                buff.setPoint(p)
+
+            # If doSmooth is off, the color of the point should be p1's color.
+            else:
+                if (shallowSlope and posDelta_x and posDelta_y):
+                    p = Point(x, Y_curr, p1.color)
+                elif (not shallowSlope and posDelta_x and posDelta_y):
+                    p = Point(Y_curr, x, p1.color)
+                elif (shallowSlope and not posDelta_x and posDelta_y):
+                    p = Point(x - 2 * stepCount, Y_curr, p1.color)
+                elif (not shallowSlope and not posDelta_x and posDelta_y):
+                    p = Point(Y_curr, x, p1.color)
 
                 pts_drawn.append(p)
                 buff.setPoint(p)
