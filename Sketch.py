@@ -261,25 +261,20 @@ class Sketch(CanvasBase):
         :type doAAlevel: int
         :rtype: None
         """
-        ##### TODO 1: Use Bresenham algorithm to draw a line between p1 and p2 on buff.
-        # Requirements:
-        #   1. Only integer is allowed in interpolate point coordinates between p1 and p2
-        #   2. Float number is allowed in interpolate point color
 
-        # The list should start with p1, which is why the first for loop starts at p1.x/y 
-        # + 1.
+        # The list should start with p1.
         pts_drawn = [p1]
 
-        # Required for reflections over y axis.
-        stepCount = 0
+        # Required for simulating linear transformations.
+        minusD_x = 1
         yStep = 1
 
         # Calculate delta_x and y.
         delta_x = p2.x - p1.x
         delta_y = p2.y - p1.y
 
-        # Make copies of delta_x and y in case the slope is steep and doSmooth is on. 
-        # We need to do this because we flip delta_x and y if the slope is steep.
+        # Make copies of delta_x and y in case we take the absolute value of either or
+        # flip them.
         orig_dx = delta_x
         orig_dy = delta_y
 
@@ -287,28 +282,23 @@ class Sketch(CanvasBase):
         # because both can be negative.
         shallowSlope = abs(delta_x) >= abs(delta_y)
 
-        # Booleans for whether delta_x or y are negative. (Used to determine if the
-        # slope as a whole is negative.)
+        # Booleans for whether delta_x or y are negative.
         posDelta_x = delta_x >= 0
         posDelta_y = delta_y >= 0
 
         # For this implementation of Bresenham's, for steep slopes, the goal is to 
         # calculate the points that would make up the line for the reciprocal slope, 
-        # but plot the points with their coordinates flipped.
+        # but plot them with their coordinates flipped.
 
-        # With the above in mind, if the slope is shallow and positive, we iterate 
-        # normally, i.e.horizontally from (p1.x + 1, p1.y/p1.y+1) to (p2.x, p2.y), 
-        # or in other words, from p1.x + 1 to p2.x. With that written out, it's easy 
-        # to see Y_0 would start at p1.y.
+        # Iterate from (p1.x + 1, p1.y/p1.y+1) to (p2.x, p2.y). Y_0 would start at p1.y.
         if (shallowSlope and posDelta_x and posDelta_y):
             min_x = min(p1.x, p2.x)
             max_x = max(p1.x, p2.x)
             Y_curr = p1.y
+            range_x = range(min_x + 1, max_x + 1)
 
-        # If the slope is steep and positive, we iterate horizonally from 
-        # (p1.y + 1, p1.x/p1.x + 1) to (p2.y, p2.x), or from p1.y + 1 to p2.y. So, delta_x 
-        # and y would be flipped, and we'd going from p1.y+1 to p2.y. With that written 
-        # out, it's easy to see Y_0 would start at p1.x.
+        # Iterate from (p1.y + 1, p1.x/p1.x + 1) to (p2.y, p2.x). So, delta_x and y would be 
+        # flipped, and Y_0 would start at p1.x.
         elif (not shallowSlope and posDelta_x and posDelta_y):
             hold = delta_x
             delta_x = delta_y
@@ -316,17 +306,20 @@ class Sketch(CanvasBase):
             min_x = min(p1.y, p2.y)
             max_x = max(p1.y, p2.y)
             Y_curr = p1.x
+            range_x = range(min_x + 1, max_x + 1)
 
-        # If the slope is shallow and negative, iterate from (p1.x + 1, p1.y/p1.y+1) to 
-        # (p1.x + delta_x, p2.x), and Y_curr starts at p1.y.
+        # Iterate from (p1.x - 1, p1.y/p1.y + 1) to (p2.x, p2.y). Y_curr would start at 
+        # p1.y.
         elif (shallowSlope and not posDelta_x and posDelta_y):
             delta_x = abs(delta_x)
-            min_x = min(p1.x, p1.x + delta_x)
-            max_x = max(p1.x, p1.x + delta_x)
+            min_x = min(p1.x, p2.x)
+            max_x = max(p1.x, p2.x)
             Y_curr = p1.y
+            range_x = range(max_x - 1, min_x - 1, -1)
 
-        # If the slope is steep and negative, iterate from (p1.y + 1, p1.x/p1.x + 1) to 
-        # (p2.y, p1.x + delta_x).
+        # Iterate from (p1.y + 1, p1.x/p1.x - 1) to (p2.y, p1.x + delta_x). The variable yStep 
+        # is -1 because we want to simulate iterating backwards on x, which is represented by y 
+        # for this slope since we plot the points with their coordinates flipped. 
         elif (not shallowSlope and not posDelta_x and posDelta_y):
             hold = abs(delta_x)
             delta_x = delta_y
@@ -335,18 +328,65 @@ class Sketch(CanvasBase):
             max_x = max(p1.y, p2.y)
             Y_curr = p1.x
             yStep = -1
+            range_x = range(min_x + 1, max_x + 1)
+
+        # Iterate from (p1.x + 1, p1.y/p1.y - 1) to (p2.x, p2.y). Y_0 would start at p1.y, and 
+        # yStep would be -1 to simulate the choice between the current or lower pixel as opposed 
+        # to the current or upper pixel.
+        elif (shallowSlope and posDelta_x and not posDelta_y):
+            delta_y = abs(delta_y)
+            min_x = min(p1.x, p2.x)
+            max_x = max(p1.x, p2.x)
+            Y_curr = p1.y
+            yStep = -1
+            range_x = range(min_x + 1, max_x + 1)
+
+        # Iterate from (p1.y - 1, p1.x/p1.x + 1) to (p2.y, p2.x). Y_0 would start at p1.x.
+        elif (not shallowSlope and posDelta_x and not posDelta_y):
+            delta_y = abs(delta_y)
+            hold = delta_x
+            delta_x = delta_y
+            delta_y = hold
+            min_x = min(p1.y, p2.y)
+            max_x = max(p1.y, p2.y)
+            Y_curr = p1.x
+            range_x = range(max_x - 1, min_x - 1, -1)
+
+        # Iterate from (p1.x - 1, p1.y/p1.y - 1) to (p2.x, p2.y). Y_0 would start at p1.y, 
+        # and yStep would be -1.
+        elif (shallowSlope and not posDelta_x and not posDelta_y):
+            delta_x = abs(delta_x)
+            delta_y = abs(delta_y)
+            min_x = min(p1.x, p2.x)
+            max_x = max(p1.x, p2.x)
+            Y_curr = p1.y
+            range_x = range(max_x - 1, min_x - 1, -1)
+            yStep = -1
+
+        # Iterate from (p1.y - 1, p1.x/p1.x - 1) to (p2.y, p2.x). Y_0 would start at p1.x, and 
+        #yStep would be -1.
+        elif (not shallowSlope and not posDelta_x and not posDelta_y):
+            delta_x = abs(delta_x)
+            delta_y = abs(delta_y)
+            hold = delta_x
+            delta_x = delta_y
+            delta_y = hold
+            min_x = min(p1.y, p2.y)
+            max_x = max(p1.y, p2.y)
+            Y_curr = p1.x
+            range_x = range(max_x - 1, min_x - 1, -1)
+            yStep = -1
 
         # This is how you calculate D_0, and D_curr would obviously start at D_0.
         D_curr = 2 * delta_y - delta_x
 
-        # By using the min_x and max_x variables that were created before, there is
-        # no need for separate for loops for lines that are shallow or steep.
-        for x in range(min_x + 1, max_x + 1):
+        # Each case has a range associated with it.
+        for x in range_x:
 
-            stepCount += 1
+            minusD_x += 1
 
             # If the decision parameter is positive, apply Bresenham's by choosing
-            # the above pixel and by adding 2 * delta_y - 2 * delta_x.
+            # the corresponding pixel and by adding 2 * delta_y - 2 * delta_x.
             if D_curr > 0:
                 Y_curr += yStep
                 D_curr = D_curr + 2 *delta_y - 2 * delta_x
@@ -390,15 +430,25 @@ class Sketch(CanvasBase):
                 elif (not shallowSlope and posDelta_x and posDelta_y):
                     p = Point(Y_curr, x, color)
 
-                # For a shallow and negative slope, simulate iterating backwards using a variable. 
-                # For each step forward, we should have gone one step back, which is the same as 
-                # subtracting by 2 times the stepCount.
+                # For a shallow and negative slope, simulate iterating backwards using minusD_x.
                 elif (shallowSlope and not posDelta_x and posDelta_y):
-                    p = Point(x - 2 * stepCount, Y_curr, color)
+                    p = Point(p1.x - minusD_x, Y_curr, color)
 
                 elif (not shallowSlope and not posDelta_x and posDelta_y):
                     p = Point(Y_curr, x, color)
-                
+
+                elif (shallowSlope and posDelta_x and not posDelta_y):
+                    p = Point(x, Y_curr, color)
+
+                elif (not shallowSlope and posDelta_x and not posDelta_y):
+                    p = Point(Y_curr, x, color)
+
+                elif (shallowSlope and not posDelta_x and not posDelta_y):
+                    p = Point(x, Y_curr, color)
+
+                elif (not shallowSlope and not posDelta_x and not posDelta_y):
+                    p = Point(Y_curr, x, color)
+
                 pts_drawn.append(p)
                 buff.setPoint(p)
 
@@ -409,8 +459,16 @@ class Sketch(CanvasBase):
                 elif (not shallowSlope and posDelta_x and posDelta_y):
                     p = Point(Y_curr, x, p1.color)
                 elif (shallowSlope and not posDelta_x and posDelta_y):
-                    p = Point(x - 2 * stepCount, Y_curr, p1.color)
+                    p = Point(x, Y_curr, p1.color)
                 elif (not shallowSlope and not posDelta_x and posDelta_y):
+                    p = Point(Y_curr, x, p1.color)
+                elif (shallowSlope and posDelta_x and not posDelta_y):
+                    p = Point(x, Y_curr, p1.color)
+                elif (not shallowSlope and posDelta_x and not posDelta_y):
+                    p = Point(Y_curr, x, p1.color)
+                elif (shallowSlope and not posDelta_x and not posDelta_y):
+                    p = Point(x, Y_curr, p1.color)
+                elif (not shallowSlope and not posDelta_x and not posDelta_y):
                     p = Point(Y_curr, x, p1.color)
 
                 pts_drawn.append(p)
