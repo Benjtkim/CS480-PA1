@@ -586,12 +586,23 @@ class Sketch(CanvasBase):
             if delta_x == 0: continue
             for x in range(min_x, max_x + 1):
                 if doSmooth:
+                    # This if statement is to find whether point1 or 2 is the left point relative to the 
+                    # iteration for the scan line that's happening. It won't always be the case point1
+                    # is the left point, since the middle point could be drawn to the left or right
+                    # of the upper point.
+                    if point1.x < point2.x:
                     # t = (x - p1.x) / delta_x
-                    t = (x - point1.x) / delta_x
-                    red = (1 - t) * point1.color.r + t * point2.color.r
-                    green = (1 - t) * point1.color.g + t * point2.color.g
-                    blue = (1 - t) * point1.color.b + t * point2.color.b
-                    color = ColorType(red, green, blue)
+                        t = (x - point1.x) / delta_x
+                        red = (1 - t) * point1.color.r + t * point2.color.r
+                        green = (1 - t) * point1.color.g + t * point2.color.g
+                        blue = (1 - t) * point1.color.b + t * point2.color.b
+                        color = ColorType(red, green, blue)
+                    else:
+                        t = (x - point2.x) / delta_x
+                        red = (1 - t) * point2.color.r + t * point1.color.r
+                        green = (1 - t) * point2.color.g + t * point1.color.g
+                        blue = (1 - t) * point2.color.b + t * point1.color.b
+                        color = ColorType(red, green, blue)
                     buff.setPoint(Point(x, y, color))
                 else:
                     buff.setPoint(Point(x, y, p1.color))
@@ -614,12 +625,19 @@ class Sketch(CanvasBase):
             if delta_x == 0: continue
             for x in range(min_x, max_x + 1):
                 if doSmooth:
-                    # t = (x - p1.x) / delta_x
-                    t = (x - point1.x) / delta_x
-                    red = (1 - t) * point1.color.r + t * point2.color.r
-                    green = (1 - t) * point1.color.g + t * point2.color.g
-                    blue = (1 - t) * point1.color.b + t * point2.color.b
-                    color = ColorType(red, green, blue)
+                    if point1.x < point2.x:
+                        # t = (x - p1.x) / delta_x
+                        t = (x - point1.x) / delta_x
+                        red = (1 - t) * point1.color.r + t * point2.color.r
+                        green = (1 - t) * point1.color.g + t * point2.color.g
+                        blue = (1 - t) * point1.color.b + t * point2.color.b
+                        color = ColorType(red, green, blue)
+                    else:
+                        t = (x - point2.x) / delta_x
+                        red = (1 - t) * point2.color.r + t * point1.color.r
+                        green = (1 - t) * point2.color.g + t * point1.color.g
+                        blue = (1 - t) * point2.color.b + t * point1.color.b
+                        color = ColorType(red, green, blue)
                     buff.setPoint(Point(x, y, color))
                 else:
                     buff.setPoint(Point(x, y, p1.color))
