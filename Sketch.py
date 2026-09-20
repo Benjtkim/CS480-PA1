@@ -509,26 +509,121 @@ class Sketch(CanvasBase):
         #   3. You should be able to support both flat shading and smooth shading, which is controlled by doSmooth
         #   4. Texture-mapped fill of triangles should be controlled by doTexture.
 
-        # Draw the 3 edges and save the lists each call to drawLine generates. Note that the points in each list
-        # are sorted in increasing y-coord order.
+        # Draw the 3 edges and save the list each call to drawLine generates. 
         list1 = self.drawLine(buff, p1, p2, doSmooth, doAA, doAAlevel)
         list2 = self.drawLine(buff, p2, p3, doSmooth, doAA, doAAlevel)
         list3 = self.drawLine(buff, p1, p3, doSmooth, doAA, doAAlevel)
 
-        # Add the 3 verticies into a list and sort them by their y-coords to find the upper, middle, and lower y-coords.
+        # Sort the lists so the points are in descending order of y.
+        list1 = sorted(list1, key=lambda point: point.y, reverse=True)
+        list2 = sorted(list2, key=lambda point: point.y, reverse=True)
+        list3 = sorted(list3, key=lambda point: point.y, reverse=True)
+
+        # Add the 3 verticies into a list and sort them by their y-coords to identify the lower, middle, and 
+        # upper points.
         pointsList = [p1, p2, p3]
         pointsList = sorted(pointsList, key=lambda point: point.y)
-        upperY = pointsList[2].y
-        middleY = pointsList[1].y
-        lowerY = pointsList[0].y
+        upperPoint = pointsList[2]
+        middlePoint = pointsList[1]
+        lowerPoint = pointsList[0]
 
-        # Find the delta_y for the upper triangle, and the delta_y for the lower triangle.
-        delta_y1 = upperY - middleY
-        delta_y2 = middleY - lowerY
+        # Dictionaries we will need to group points by their y-value.
+        points_by_y1 = dict()
+        points_by_y2 = dict()
+        points_by_y3 = dict()
 
-        # for y in range(upperY, middleY, -1):
-        #     print("hello")
-        
+        # The next 3 for loops will group the points in the lists by their y-values.
+        for point in list1:
+            if point.y not in points_by_y1:
+                points_by_y1[point.y] = [point]
+            else:
+                points_by_y1[point.y].append(point)
+
+        for point in list2:
+            if point.y not in points_by_y2:
+                points_by_y2[point.y] = [point]
+            else:
+                points_by_y2[point.y].append(point)
+
+        for point in list3:
+            if point.y not in points_by_y3:
+                points_by_y3[point.y] = [point]
+            else:
+                points_by_y3[point.y].append(point)
+
+        # Based on which points are the lower, upper, and middle points, determine the lines we need to interpolate with
+        # and therefore the dictionaries we need.
+        if (upperPoint == p1 and middlePoint == p2) or (upperPoint == p1 and middlePoint == p3):
+            # Lines are p1 -> p2, p1 -> p3.
+            dictToUse1 = points_by_y1 
+            dictToUse2 = points_by_y3
+            remainingLine = points_by_y2
+        elif (upperPoint == p2 and middlePoint == p1) or (upperPoint == p2 and middlePoint == p3):
+            # Lines are p1 -> p2, p2 -> p3
+            dictToUse1 = points_by_y1
+            dictToUse2 = points_by_y2
+            remainingLine = points_by_y3
+        elif (upperPoint == p3 and middlePoint == p2) or (upperPoint == p3 and middlePoint == p1):
+            # Lines are p1 -> p3, p2 -> p3.
+            dictToUse1 = points_by_y3
+            dictToUse2 = points_by_y2
+            remainingLine = points_by_y1
+
+        # Apply the triangle rasterization method we learned in class to fill in the pixels until the midline, including 
+        # the pixels that form the midline.
+        for y in range(upperPoint.y - 1, middlePoint.y, -1):
+
+            # One point will be from the first dictionary, and the other point will be from the other dictionary.
+            point1 = dictToUse1[y][0]
+            point2 = dictToUse2[y][0]
+
+            min_x = min(point1.x, point2.x)
+            max_x = max(point1.x, point2.x)
+            delta_x = max_x - min_x
+
+            # If delta_x is 0, then there's one pixel for this y that should already be drawn, so the function
+            # can skip this y.
+            if delta_x == 0: continue
+            for x in range(min_x, max_x + 1):
+                if doSmooth:
+                    # t = (x - p1.x) / delta_x
+                    t = (x - point1.x) / delta_x
+                    red = (1 - t) * point1.color.r + t * point2.color.r
+                    green = (1 - t) * point1.color.g + t * point2.color.g
+                    blue = (1 - t) * point1.color.b + t * point2.color.b
+                    color = ColorType(red, green, blue)
+                    buff.setPoint(Point(x, y, color))
+                else:
+                    buff.setPoint(Point(x, y, p1.color))
+
+        # Fill in the rest of the pixels.
+        for y in range(middlePoint.y, lowerPoint.y, -1):
+
+            # To figure out which of the two dictionaries we need from before, we can just find which one is bigger,
+            # since we will always need the longer line to interpolate from in this final step.
+            if len(dictToUse1) > len(dictToUse2):
+                dictToUse = dictToUse1
+            else:
+                dictToUse = dictToUse2
+    
+            point1 = dictToUse[y][0]
+            point2 = remainingLine[y][0]
+            min_x = min(point1.x, point2.x)
+            max_x = max(point1.x, point2.x)
+            delta_x = max_x - min_x
+            if delta_x == 0: continue
+            for x in range(min_x, max_x + 1):
+                if doSmooth:
+                    # t = (x - p1.x) / delta_x
+                    t = (x - point1.x) / delta_x
+                    red = (1 - t) * point1.color.r + t * point2.color.r
+                    green = (1 - t) * point1.color.g + t * point2.color.g
+                    blue = (1 - t) * point1.color.b + t * point2.color.b
+                    color = ColorType(red, green, blue)
+                    buff.setPoint(Point(x, y, color))
+                else:
+                    buff.setPoint(Point(x, y, p1.color))
+    
         return
 
     # test for lines lines in all directions
